@@ -255,9 +255,13 @@ export async function getAttachedDevicesAsync({
   const spinner = ora('Waiting for ADB device discovery');
   spinner.start();
 
-  let output: string;
   try {
-    output = await server.runHostQueryAsync(['devices', '-l'], 'device discovery', operationSignal);
+    const output = await server.runHostQueryAsync(
+      ['devices', '-l'],
+      'device discovery',
+      operationSignal
+    );
+    return await parseAttachedDevicesAsync(output, operationSignal);
   } catch (error) {
     // Caller cancellation is not a discovery failure, so skip the diagnostic probe
     if (signal?.aborted && error === signal.reason) {
@@ -277,7 +281,9 @@ export async function getAttachedDevicesAsync({
   } finally {
     spinner.stop();
   }
+}
 
+async function parseAttachedDevicesAsync(output: string, signal: AbortSignal): Promise<Device[]> {
   return Promise.all(
     parseAdbDeviceList(output).map(async (record): Promise<Device> => {
       // unauthorized: ['FA8251A00719', 'unauthorized', 'usb:338690048X', 'transport_id:5']
@@ -306,7 +312,7 @@ export async function getAttachedDevicesAsync({
         name = model || `Device ${pid}`;
       } else if (isUsable) {
         // Given a usable emulator pid, get the AVD name for matching the attached transport.
-        name = (await getAdbNameForDeviceIdAsync({ pid }, operationSignal)) ?? '';
+        name = (await getAdbNameForDeviceIdAsync({ pid }, signal)) ?? '';
       } else {
         name = `Device ${pid}`;
       }
